@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Kyun-Seop Bae" />
+
+
+<title>simPDF: Fast Multi-Page PDF Reports</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">simPDF: Fast Multi-Page PDF Reports</h1>
+<h4 class="author">Kyun-Seop Bae</h4>
+
+
+
+<div id="why-simpdf" class="section level2">
+<h2>Why simPDF</h2>
+<p><code>simPDF</code> builds multi-page PDF <strong>reports</strong> on
+top of R’s built-in graphics device (<code>pdf()</code> /
+<code>cairo_pdf()</code>). It is deliberately small: base R only, no
+<code>knitr</code>/<code>LaTeX</code>/<code>pandoc</code> toolchain, so
+a report is written in a single fast pass.</p>
+<p>Its defining idea is <strong>measured layout</strong>. Every block of
+content reports its real width and height (via
+<code>strwidth()</code>/<code>strheight()</code> on the open device);
+the vertical cursor advances by that measured height; and pages break
+automatically. This removes the text/table overlap that plagues reports
+built with hand-computed row/column coordinates – content never collides
+no matter how many parameters, rows, or random effects it has.</p>
+<p>Interactive fillable forms (AcroForm CRFs) are out of scope and
+handled by the sibling package <code>pdfCRF</code>; <code>simPDF</code>
+is for reports and figures.</p>
+</div>
+<div id="the-mental-model" class="section level2">
+<h2>The mental model</h2>
+<p>A report is a <strong>document</strong> (<code>sp_new()</code>), a
+rectangular content <strong>frame</strong> (<code>frame_set()</code>),
+and a list of <strong>blocks</strong> run through the <strong>flow
+engine</strong> (<code>flow_run()</code>). Coordinates are PDF points
+(1/72 inch); <code>doc$W</code>/<code>doc$H</code> are the page
+width/height.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>(), <span class="at">paper =</span> <span class="st">&quot;letter&quot;</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;Hello, simPDF&quot;</span>, <span class="at">size =</span> <span class="dv">16</span>, <span class="at">font =</span> <span class="dv">2</span>),   <span class="co"># font: 1 plain, 2 bold, 3 italic</span></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  <span class="fu">block_rule</span>(),</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;This paragraph is measured and wraps to the frame width automatically.</span></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="st">              Add as much text as you like; the engine breaks lines and pages for you.&quot;</span>)</span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>))</span>
+<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+<p><code>flow_run()</code> measures each block, draws it if it fits,
+otherwise starts a new page. <code>NULL</code> entries are dropped, so
+conditional blocks (<code>if (cond) block_*()</code>) are fine.</p>
+</div>
+<div id="text-blocks" class="section level2">
+<h2>Text blocks</h2>
+<p><code>block_para()</code> word-wraps and aligns prose.
+<code>block_pre()</code> renders a character vector one physical line
+each – ideal for <code>capture.output()</code> dumps – and auto-shrinks
+the font so the widest line still fits the frame width.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>())</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;Left / centre / right alignment&quot;</span>, <span class="at">size =</span> <span class="dv">12</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;centred&quot;</span>, <span class="at">align =</span> <span class="st">&quot;center&quot;</span>),</span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;right&quot;</span>,   <span class="at">align =</span> <span class="st">&quot;right&quot;</span>),</span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;A fixed-point summary printed verbatim:&quot;</span>, <span class="at">size =</span> <span class="dv">11</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  <span class="fu">block_pre</span>(<span class="fu">capture.output</span>(<span class="fu">summary</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>)))</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>))</span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+</div>
+<div id="tables-and-matrices" class="section level2">
+<h2>Tables and matrices</h2>
+<p><code>block_table()</code> renders a data.frame/matrix with
+<strong>column widths measured from the content</strong>, numeric
+columns right-aligned, a header that <strong>repeats on every
+page</strong>, and automatic <strong>row-boundary page
+splitting</strong>. Row names become a leading label column.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a>big <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(<span class="at">ID =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">200</span>, <span class="at">TIME =</span> <span class="fu">round</span>(<span class="fu">runif</span>(<span class="dv">200</span>, <span class="dv">0</span>, <span class="dv">24</span>), <span class="dv">2</span>),</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>                  <span class="at">DV =</span> <span class="fu">round</span>(<span class="fu">rlnorm</span>(<span class="dv">200</span>), <span class="dv">3</span>), <span class="at">WT =</span> <span class="fu">round</span>(<span class="fu">runif</span>(<span class="dv">200</span>, <span class="dv">50</span>, <span class="dv">90</span>), <span class="dv">1</span>))</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>())</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H <span class="sc">-</span> <span class="dv">45</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">45</span>, <span class="at">right =</span> doc<span class="sc">$</span>W <span class="sc">-</span> <span class="dv">45</span>)</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(<span class="fu">block_para</span>(<span class="st">&quot;Input data&quot;</span>, <span class="dv">13</span>, <span class="at">font =</span> <span class="dv">2</span>), <span class="fu">block_table</span>(big, <span class="at">size =</span> <span class="dv">9</span>)))</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;pages:&quot;</span>, doc<span class="sc">$</span>page_no, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="co">#&gt; pages: 4</span></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+<p><code>block_matrix()</code> handles a <strong>wide</strong> matrix by
+splitting its columns into groups that each fit the page (row labels
+repeated in every group). This is what fixes the classic “print a 14x14
+covariance matrix” overlap.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>M <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">round</span>(<span class="fu">rnorm</span>(<span class="dv">144</span>, <span class="dv">0</span>, .<span class="dv">4</span>), <span class="dv">3</span>), <span class="dv">12</span>, <span class="dv">12</span>,</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>            <span class="at">dimnames =</span> <span class="fu">list</span>(<span class="fu">paste0</span>(<span class="st">&quot;Eta&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">12</span>), <span class="fu">paste0</span>(<span class="st">&quot;Eta&quot;</span>, <span class="dv">1</span><span class="sc">:</span><span class="dv">12</span>)))</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>()); <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H<span class="dv">-45</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">45</span>, <span class="at">right =</span> doc<span class="sc">$</span>W<span class="dv">-45</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(<span class="fu">block_para</span>(<span class="st">&quot;Omega matrix (12 x 12)&quot;</span>, <span class="dv">13</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a>                   <span class="fu">block_matrix</span>(M, <span class="at">size =</span> <span class="dv">9</span>)))</span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+</div>
+<div id="plots-and-full-page-figures" class="section level2">
+<h2>Plots and full-page figures</h2>
+<p><code>block_plot()</code> draws one base-R plot into a reserved band
+<strong>inline</strong> with the text (the expression is captured
+unevaluated and run at draw time), so a heading, a plot, and a table can
+share a page and paginate together.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">1</span>); pred <span class="ot">&lt;-</span> <span class="fu">rlnorm</span>(<span class="dv">80</span>); dv <span class="ot">&lt;-</span> pred <span class="sc">*</span> <span class="fu">exp</span>(<span class="fu">rnorm</span>(<span class="dv">80</span>, <span class="dv">0</span>, .<span class="dv">3</span>))</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>()); <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H<span class="dv">-45</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">45</span>, <span class="at">right =</span> doc<span class="sc">$</span>W<span class="dv">-45</span>)</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>  <span class="fu">block_keep</span>(<span class="fu">list</span>(</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>    <span class="fu">block_para</span>(<span class="st">&quot;Goodness of fit&quot;</span>, <span class="dv">12</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>    <span class="fu">block_plot</span>({ <span class="fu">plot</span>(pred, dv); <span class="fu">abline</span>(<span class="dv">0</span>, <span class="dv">1</span>, <span class="at">lty =</span> <span class="dv">3</span>) }, <span class="at">height =</span> <span class="dv">220</span>)))</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a>))</span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+<p>For a <strong>whole page</strong> of panels (e.g. one diagnostic grid
+per subject), use <code>sp_figure_page()</code>, which manages the page
+outside the flow engine. Draw exactly <code>prod(mfrow)</code> panels
+per call.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>())</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="cf">for</span> (s <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">3</span>)</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="fu">sp_figure_page</span>(doc, { <span class="cf">for</span> (i <span class="cf">in</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">6</span>) <span class="fu">plot</span>(<span class="fu">rnorm</span>(<span class="dv">30</span>), <span class="fu">rnorm</span>(<span class="dv">30</span>), <span class="at">main =</span> <span class="fu">paste</span>(<span class="st">&quot;Subj&quot;</span>, s)) },</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>                 <span class="at">mfrow =</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">3</span>))</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;pages:&quot;</span>, doc<span class="sc">$</span>page_no, <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a><span class="co">#&gt; pages: 3</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+</div>
+<div id="structure-keep-together-spacers-rules-headersfooters" class="section level2">
+<h2>Structure: keep-together, spacers, rules, headers/footers</h2>
+<p><code>block_keep()</code> keeps a group on one page (a heading never
+lands alone at the bottom); <code>block_spacer(pts)</code> and
+<code>block_rule()</code> add vertical space and lines. Running
+headers/footers are stamped on every page.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>()); <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H<span class="dv">-55</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">45</span>, <span class="at">right =</span> doc<span class="sc">$</span>W<span class="dv">-45</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="fu">flow_run</span>(doc,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="at">blocks =</span> <span class="fu">list</span>(<span class="fu">block_para</span>(<span class="st">&quot;Report body&quot;</span>, <span class="dv">12</span>), <span class="fu">block_spacer</span>(<span class="dv">10</span>),</span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>                <span class="fu">block_para</span>(<span class="fu">paste</span>(<span class="fu">rep</span>(<span class="st">&quot;More text.&quot;</span>, <span class="dv">40</span>), <span class="at">collapse =</span> <span class="st">&quot; &quot;</span>))),</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>  <span class="at">footer =</span> <span class="fu">block_para</span>(<span class="st">&quot;CONFIDENTIAL&quot;</span>, <span class="at">size =</span> <span class="dv">8</span>, <span class="at">align =</span> <span class="st">&quot;center&quot;</span>))</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+</div>
+<div id="measurement-and-quality-checks" class="section level2">
+<h2>Measurement and quality checks</h2>
+<p><code>sp_width()</code> / <code>sp_height()</code> expose the exact
+metrics the engine uses (AFM-exact for the core fonts). The tracer
+records every drawn text box so you can assert that a report has
+<strong>zero overlaps</strong> – handy in package tests.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>()); <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H<span class="dv">-45</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">45</span>, <span class="at">right =</span> doc<span class="sc">$</span>W<span class="dv">-45</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a><span class="fu">sp_trace</span>(doc, <span class="cn">TRUE</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(<span class="fu">block_para</span>(<span class="st">&quot;Measured &amp; overlap-free&quot;</span>, <span class="dv">14</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>                   <span class="fu">block_table</span>(<span class="fu">head</span>(mtcars))))</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;Courier &#39;12345&#39; at 10pt =&quot;</span>, <span class="fu">sp_width</span>(doc, <span class="st">&quot;12345&quot;</span>, <span class="at">size =</span> <span class="dv">10</span>, <span class="at">family =</span> <span class="st">&quot;mono&quot;</span>), <span class="st">&quot;pt</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="co">#&gt; Courier &#39;12345&#39; at 10pt = 30 pt</span></span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="fu">cat</span>(<span class="st">&quot;overlapping text boxes  =&quot;</span>, <span class="fu">nrow</span>(<span class="fu">sp_overlaps</span>(doc)), <span class="st">&quot;</span><span class="sc">\n</span><span class="st">&quot;</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt; overlapping text boxes  = 0</span></span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+</div>
+<div id="authorship-and-signatures" class="section level2">
+<h2>Authorship and signatures</h2>
+<p><code>block_authorship()</code> adds a “Prepared by” block;
+<code>block_signature()</code> draws visible approval lines and records
+their positions. <code>sp_add_sig_fields()</code> then inserts
+<strong>interactive Adobe Acrobat signature fields</strong>
+(<code>/Sig</code>) over those lines via a pure base-R incremental
+update – the finished PDF is one-click signable in the free Acrobat
+Reader.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>f <span class="ot">&lt;-</span> <span class="fu">out</span>()</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(f); <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H<span class="dv">-50</span>, <span class="at">bottom =</span> <span class="dv">60</span>, <span class="at">left =</span> <span class="dv">54</span>, <span class="at">right =</span> doc<span class="sc">$</span>W<span class="dv">-54</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="fu">block_para</span>(<span class="st">&quot;Validation Report&quot;</span>, <span class="dv">16</span>, <span class="at">font =</span> <span class="dv">2</span>), <span class="fu">block_rule</span>(),</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>  <span class="fu">block_authorship</span>(<span class="st">&quot;Kyun-Seop Bae&quot;</span>, <span class="at">role =</span> <span class="st">&quot;Prepared by&quot;</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>                   <span class="at">affiliation =</span> <span class="st">&quot;Asan Medical Center&quot;</span>, <span class="at">date =</span> <span class="st">&quot;2026-07-11&quot;</span>),</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  <span class="fu">block_spacer</span>(<span class="dv">30</span>), <span class="fu">block_para</span>(<span class="st">&quot;Approvals&quot;</span>, <span class="dv">12</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  <span class="fu">block_signature</span>(<span class="fu">c</span>(<span class="st">&quot;Performed by&quot;</span>, <span class="st">&quot;Reviewed by&quot;</span>))</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>))</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="fu">sp_add_sig_fields</span>(f, doc)          <span class="co"># add clickable /Sig fields over the drawn lines</span></span></code></pre></div>
+</div>
+<div id="model-flow-diagrams" class="section level2">
+<h2>Model flow diagrams</h2>
+<p><code>block_flow_diagram()</code> lays out a tree of nodes
+(e.g. NONMEM model runs) as boxes sized to their text, tidily arranged
+and <strong>scaled to fit</strong> – so more models shrink the diagram
+instead of cluttering it.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>nodes <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>  <span class="at">id =</span> <span class="fu">c</span>(<span class="st">&quot;001&quot;</span>,<span class="st">&quot;002&quot;</span>,<span class="st">&quot;003&quot;</span>,<span class="st">&quot;004&quot;</span>,<span class="st">&quot;005&quot;</span>),</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>  <span class="at">parent =</span> <span class="fu">c</span>(<span class="st">&quot;&quot;</span>, <span class="st">&quot;001&quot;</span>, <span class="st">&quot;001&quot;</span>, <span class="st">&quot;002&quot;</span>, <span class="st">&quot;002&quot;</span>),</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="at">label =</span> <span class="fu">c</span>(<span class="st">&quot;Run 001</span><span class="sc">\n</span><span class="st">OFV 1000&quot;</span>, <span class="st">&quot;Run 002</span><span class="sc">\n</span><span class="st">OFV 980&quot;</span>, <span class="st">&quot;Run 003</span><span class="sc">\n</span><span class="st">OFV 975&quot;</span>,</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>            <span class="st">&quot;Run 004</span><span class="sc">\n</span><span class="st">OFV 960&quot;</span>, <span class="st">&quot;Run 005</span><span class="sc">\n</span><span class="st">OFV 955&quot;</span>),</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="at">stringsAsFactors =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(<span class="fu">out</span>()); <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H<span class="dv">-45</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">40</span>, <span class="at">right =</span> doc<span class="sc">$</span>W<span class="dv">-40</span>)</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a><span class="fu">flow_run</span>(doc, <span class="fu">list</span>(<span class="fu">block_para</span>(<span class="st">&quot;Model development flow&quot;</span>, <span class="dv">14</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>                   <span class="fu">block_flow_diagram</span>(nodes, <span class="at">height =</span> <span class="dv">400</span>)))</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a><span class="fu">sp_close</span>(doc)</span></code></pre></div>
+</div>
+<div id="using-simpdf-from-your-own-package" class="section level2">
+<h2>Using simPDF from your own package</h2>
+<p>The typical pattern (as used by <code>nmw</code>): keep your
+parsing/statistics, and replace the PDF-generation with a
+<code>blocks</code> list plus one <code>flow_run()</code>, wrapping any
+diagnostic plots in <code>block_plot()</code> /
+<code>sp_figure_page()</code>:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>my_report <span class="ot">&lt;-</span> <span class="cf">function</span>(x, <span class="at">file =</span> <span class="st">&quot;report.pdf&quot;</span>) {</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>  <span class="co"># ... compute tables/values from x ...</span></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>  doc <span class="ot">&lt;-</span> <span class="fu">sp_new</span>(file, <span class="at">paper =</span> <span class="st">&quot;letter&quot;</span>, <span class="at">family =</span> <span class="st">&quot;Courier&quot;</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>  <span class="fu">frame_set</span>(doc, <span class="at">top =</span> doc<span class="sc">$</span>H <span class="sc">-</span> <span class="dv">45</span>, <span class="at">bottom =</span> <span class="dv">45</span>, <span class="at">left =</span> <span class="dv">45</span>, <span class="at">right =</span> doc<span class="sc">$</span>W <span class="sc">-</span> <span class="dv">45</span>)</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>  <span class="fu">flow_run</span>(doc, <span class="fu">list</span>(</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>    <span class="fu">block_para</span>(<span class="st">&quot;Summary&quot;</span>, <span class="at">size =</span> <span class="dv">16</span>, <span class="at">font =</span> <span class="dv">2</span>), <span class="fu">block_rule</span>(),</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>    <span class="fu">block_table</span>(my_table),</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>    <span class="fu">block_para</span>(<span class="st">&quot;Diagnostics&quot;</span>, <span class="at">size =</span> <span class="dv">12</span>, <span class="at">font =</span> <span class="dv">2</span>),</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>    <span class="fu">block_plot</span>(<span class="fu">plot</span>(my_x, my_y), <span class="at">height =</span> <span class="dv">220</span>)</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>  ), <span class="at">footer =</span> <span class="fu">block_para</span>(<span class="st">&quot;CONFIDENTIAL&quot;</span>, <span class="at">size =</span> <span class="dv">8</span>, <span class="at">align =</span> <span class="st">&quot;center&quot;</span>))</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a>  <span class="fu">sp_close</span>(doc)</span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a>}</span></code></pre></div>
+<p>Add <code>simPDF</code> to your <code>Imports</code>. Because
+<code>simPDF</code> uses only the graphics device, your diagnostic plots
+keep working unchanged – they are simply placed by the flow engine
+instead of by hand-computed coordinates, and never overlap.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

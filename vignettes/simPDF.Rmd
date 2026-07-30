@@ -1,0 +1,228 @@
+---
+title: "simPDF: Fast Multi-Page PDF Reports"
+author: "Kyun-Seop Bae"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{simPDF: Fast Multi-Page PDF Reports}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+library(simPDF)
+out <- function() tempfile(fileext = ".pdf")   # examples write to a temp file
+```
+
+## Why simPDF
+
+`simPDF` builds multi-page PDF **reports** on top of R's built-in graphics
+device (`pdf()` / `cairo_pdf()`). It is deliberately small: base R only, no
+`knitr`/`LaTeX`/`pandoc` toolchain, so a report is written in a single fast pass.
+
+Its defining idea is **measured layout**. Every block of content reports its
+real width and height (via `strwidth()`/`strheight()` on the open device); the
+vertical cursor advances by that measured height; and pages break automatically.
+This removes the text/table overlap that plagues reports built with
+hand-computed row/column coordinates -- content never collides no matter how many
+parameters, rows, or random effects it has.
+
+Interactive fillable forms (AcroForm CRFs) are out of scope and handled by the
+sibling package `pdfCRF`; `simPDF` is for reports and figures.
+
+## The mental model
+
+A report is a **document** (`sp_new()`), a rectangular content **frame**
+(`frame_set()`), and a list of **blocks** run through the **flow engine**
+(`flow_run()`). Coordinates are PDF points (1/72 inch); `doc$W`/`doc$H` are the
+page width/height.
+
+```{r quickstart}
+doc <- sp_new(out(), paper = "letter")
+flow_run(doc, list(
+  block_para("Hello, simPDF", size = 16, font = 2),   # font: 1 plain, 2 bold, 3 italic
+  block_rule(),
+  block_para("This paragraph is measured and wraps to the frame width automatically.
+              Add as much text as you like; the engine breaks lines and pages for you.")
+))
+sp_close(doc)
+```
+
+`flow_run()` measures each block, draws it if it fits, otherwise starts a new
+page. `NULL` entries are dropped, so conditional blocks
+(`if (cond) block_*()`) are fine.
+
+## Text blocks
+
+`block_para()` word-wraps and aligns prose. `block_pre()` renders a character
+vector one physical line each -- ideal for `capture.output()` dumps -- and
+auto-shrinks the font so the widest line still fits the frame width.
+
+```{r text}
+doc <- sp_new(out())
+flow_run(doc, list(
+  block_para("Left / centre / right alignment", size = 12, font = 2),
+  block_para("centred", align = "center"),
+  block_para("right",   align = "right"),
+  block_para("A fixed-point summary printed verbatim:", size = 11, font = 2),
+  block_pre(capture.output(summary(1:100)))
+))
+sp_close(doc)
+```
+
+## Tables and matrices
+
+`block_table()` renders a data.frame/matrix with **column widths measured from
+the content**, numeric columns right-aligned, a header that **repeats on every
+page**, and automatic **row-boundary page splitting**. Row names become a
+leading label column.
+
+```{r table}
+big <- data.frame(ID = 1:200, TIME = round(runif(200, 0, 24), 2),
+                  DV = round(rlnorm(200), 3), WT = round(runif(200, 50, 90), 1))
+doc <- sp_new(out())
+frame_set(doc, top = doc$H - 45, bottom = 45, left = 45, right = doc$W - 45)
+flow_run(doc, list(block_para("Input data", 13, font = 2), block_table(big, size = 9)))
+cat("pages:", doc$page_no, "\n")
+sp_close(doc)
+```
+
+`block_matrix()` handles a **wide** matrix by splitting its columns into groups
+that each fit the page (row labels repeated in every group). This is what fixes
+the classic "print a 14x14 covariance matrix" overlap.
+
+```{r matrix}
+M <- matrix(round(rnorm(144, 0, .4), 3), 12, 12,
+            dimnames = list(paste0("Eta", 1:12), paste0("Eta", 1:12)))
+doc <- sp_new(out()); frame_set(doc, top = doc$H-45, bottom = 45, left = 45, right = doc$W-45)
+flow_run(doc, list(block_para("Omega matrix (12 x 12)", 13, font = 2),
+                   block_matrix(M, size = 9)))
+sp_close(doc)
+```
+
+## Plots and full-page figures
+
+`block_plot()` draws one base-R plot into a reserved band **inline** with the
+text (the expression is captured unevaluated and run at draw time), so a
+heading, a plot, and a table can share a page and paginate together.
+
+```{r plot}
+set.seed(1); pred <- rlnorm(80); dv <- pred * exp(rnorm(80, 0, .3))
+doc <- sp_new(out()); frame_set(doc, top = doc$H-45, bottom = 45, left = 45, right = doc$W-45)
+flow_run(doc, list(
+  block_keep(list(
+    block_para("Goodness of fit", 12, font = 2),
+    block_plot({ plot(pred, dv); abline(0, 1, lty = 3) }, height = 220)))
+))
+sp_close(doc)
+```
+
+For a **whole page** of panels (e.g. one diagnostic grid per subject), use
+`sp_figure_page()`, which manages the page outside the flow engine. Draw exactly
+`prod(mfrow)` panels per call.
+
+```{r figpage}
+doc <- sp_new(out())
+for (s in 1:3)
+  sp_figure_page(doc, { for (i in 1:6) plot(rnorm(30), rnorm(30), main = paste("Subj", s)) },
+                 mfrow = c(2, 3))
+cat("pages:", doc$page_no, "\n")
+sp_close(doc)
+```
+
+## Structure: keep-together, spacers, rules, headers/footers
+
+`block_keep()` keeps a group on one page (a heading never lands alone at the
+bottom); `block_spacer(pts)` and `block_rule()` add vertical space and lines.
+Running headers/footers are stamped on every page.
+
+```{r structure}
+doc <- sp_new(out()); frame_set(doc, top = doc$H-55, bottom = 45, left = 45, right = doc$W-45)
+flow_run(doc,
+  blocks = list(block_para("Report body", 12), block_spacer(10),
+                block_para(paste(rep("More text.", 40), collapse = " "))),
+  footer = block_para("CONFIDENTIAL", size = 8, align = "center"))
+sp_close(doc)
+```
+
+## Measurement and quality checks
+
+`sp_width()` / `sp_height()` expose the exact metrics the engine uses (AFM-exact
+for the core fonts). The tracer records every drawn text box so you can assert
+that a report has **zero overlaps** -- handy in package tests.
+
+```{r qa}
+doc <- sp_new(out()); frame_set(doc, top = doc$H-45, bottom = 45, left = 45, right = doc$W-45)
+sp_trace(doc, TRUE)
+flow_run(doc, list(block_para("Measured & overlap-free", 14, font = 2),
+                   block_table(head(mtcars))))
+cat("Courier '12345' at 10pt =", sp_width(doc, "12345", size = 10, family = "mono"), "pt\n")
+cat("overlapping text boxes  =", nrow(sp_overlaps(doc)), "\n")
+sp_close(doc)
+```
+
+## Authorship and signatures
+
+`block_authorship()` adds a "Prepared by" block; `block_signature()` draws
+visible approval lines and records their positions. `sp_add_sig_fields()` then
+inserts **interactive Adobe Acrobat signature fields** (`/Sig`) over those lines
+via a pure base-R incremental update -- the finished PDF is one-click signable in
+the free Acrobat Reader.
+
+```{r signature}
+f <- out()
+doc <- sp_new(f); frame_set(doc, top = doc$H-50, bottom = 60, left = 54, right = doc$W-54)
+flow_run(doc, list(
+  block_para("Validation Report", 16, font = 2), block_rule(),
+  block_authorship("Kyun-Seop Bae", role = "Prepared by",
+                   affiliation = "Asan Medical Center", date = "2026-07-11"),
+  block_spacer(30), block_para("Approvals", 12, font = 2),
+  block_signature(c("Performed by", "Reviewed by"))
+))
+sp_close(doc)
+sp_add_sig_fields(f, doc)          # add clickable /Sig fields over the drawn lines
+```
+
+## Model flow diagrams
+
+`block_flow_diagram()` lays out a tree of nodes (e.g. NONMEM model runs) as boxes
+sized to their text, tidily arranged and **scaled to fit** -- so more models
+shrink the diagram instead of cluttering it.
+
+```{r flowdiagram}
+nodes <- data.frame(
+  id = c("001","002","003","004","005"),
+  parent = c("", "001", "001", "002", "002"),
+  label = c("Run 001\nOFV 1000", "Run 002\nOFV 980", "Run 003\nOFV 975",
+            "Run 004\nOFV 960", "Run 005\nOFV 955"),
+  stringsAsFactors = FALSE)
+doc <- sp_new(out()); frame_set(doc, top = doc$H-45, bottom = 45, left = 40, right = doc$W-40)
+flow_run(doc, list(block_para("Model development flow", 14, font = 2),
+                   block_flow_diagram(nodes, height = 400)))
+sp_close(doc)
+```
+
+## Using simPDF from your own package
+
+The typical pattern (as used by `nmw`): keep your parsing/statistics, and replace
+the PDF-generation with a `blocks` list plus one `flow_run()`, wrapping any
+diagnostic plots in `block_plot()` / `sp_figure_page()`:
+
+```r
+my_report <- function(x, file = "report.pdf") {
+  # ... compute tables/values from x ...
+  doc <- sp_new(file, paper = "letter", family = "Courier")
+  frame_set(doc, top = doc$H - 45, bottom = 45, left = 45, right = doc$W - 45)
+  flow_run(doc, list(
+    block_para("Summary", size = 16, font = 2), block_rule(),
+    block_table(my_table),
+    block_para("Diagnostics", size = 12, font = 2),
+    block_plot(plot(my_x, my_y), height = 220)
+  ), footer = block_para("CONFIDENTIAL", size = 8, align = "center"))
+  sp_close(doc)
+}
+```
+
+Add `simPDF` to your `Imports`. Because `simPDF` uses only the graphics device,
+your diagnostic plots keep working unchanged -- they are simply placed by the
+flow engine instead of by hand-computed coordinates, and never overlap.
