@@ -1,5 +1,23 @@
 # simPDF NEWS
 
+## simPDF 0.1.2
+
+Bug fix release.
+
+- Fixed a crash in the flow engine when a block's height equalled the space
+  left on the page to within floating-point error: `split()` then reported the
+  whole block as fitting (`head = <block>`, `tail = NULL`) and `.place_block()`
+  went on to measure the `NULL` tail ("attempt to apply non-function").
+  `.place_block()` now (a) treats a block as fitting when its height exceeds the
+  remaining space by less than 1e-9 pt, matching the tolerance the `split()`
+  methods already use, and (b) stops cleanly when a split returns no tail,
+  instead of starting a page for it. Affected `block_para()`, `block_pre()` and
+  `block_table()` alike; `nmw` worked around it. Regression-tested in
+  `inst/tinytest/test_flow.R`.
+- `.block_seq()` (used by `block_table()`/`block_matrix()`) now returns
+  `tail = NULL` rather than an empty sequence block when a split consumes every
+  sub-block, which also removes a spurious trailing blank page.
+
 ## simPDF 0.1.1
 
 Documentation-only release for the CRAN resubmission (no code changes).

@@ -38,7 +38,7 @@
     h     <- b$measure(doc, fw)
     avail <- doc$y - doc$frame$bottom
 
-    if (h <= avail) {                              # fits: draw and advance
+    if (h <= avail + 1e-9) {                       # fits (within float error)
       b$draw(doc, doc$frame$left, doc$y, fw)
       doc$y <- doc$y - h - gap
       break
@@ -48,6 +48,10 @@
       parts <- b$split(doc, fw, avail)
       if (!is.null(parts$head)) {
         parts$head$draw(doc, doc$frame$left, doc$y, fw)
+        if (is.null(parts$tail)) {                 # head took the whole block
+          doc$y <- doc$y - parts$head$measure(doc, fw) - gap
+          break
+        }
         sp_page(doc)
         b <- parts$tail
         next

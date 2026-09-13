@@ -43,3 +43,27 @@ B <- do.call(rbind, doc$trace$boxes)
 fr <- doc$frame$right
 sp_close(doc)
 expect_true(all(B[, "x1"] <= fr + 0.5))
+
+## --- exact fit within float error: no NULL tail, no spurious page break ---
+out3 <- tempfile(fileext = ".pdf")
+doc <- sp_new(out3, paper = "letter", family = "Helvetica", size = 10)
+frame_set(doc, top = doc$H - 40, bottom = 40, left = 40, right = doc$W - 40)
+sp_page(doc)
+b <- block_para("the last line of the page", size = 10)
+h <- b$measure(doc, doc$frame$right - doc$frame$left)
+doc$y <- doc$frame$bottom + h - 1e-12     # avail == h up to float error
+expect_silent(flow_add(doc, b))
+expect_equal(doc$page_no, 1L)             # drawn here, not pushed to a new page
+sp_close(doc)
+
+## --- same edge for a table (header + rows exactly fill the frame) ---
+out4 <- tempfile(fileext = ".pdf")
+doc <- sp_new(out4, paper = "letter", family = "Helvetica", size = 10)
+frame_set(doc, top = doc$H - 40, bottom = 40, left = 40, right = doc$W - 40)
+sp_page(doc)
+tb <- block_table(data.frame(a = 1:8, b = letters[1:8]))
+h <- tb$measure(doc, doc$frame$right - doc$frame$left)
+doc$y <- doc$frame$bottom + h - 1e-12
+expect_silent(flow_add(doc, tb))
+expect_equal(doc$page_no, 1L)
+sp_close(doc)

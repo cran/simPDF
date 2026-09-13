@@ -179,7 +179,8 @@ block_table <- function(x, size = 9, family = "sans", font = 1L, header = TRUE,
       tailsubs <- c(if (!is.null(parts$tail)) list(parts$tail),
                     if (i < n) subs[(i + 1L):n] else NULL)
       if (!length(head)) return(list(head = NULL, tail = self))
-      list(head = .block_seq(head, gap), tail = .block_seq(tailsubs, gap))
+      list(head = .block_seq(head, gap),
+           tail = if (length(tailsubs)) .block_seq(tailsubs, gap) else NULL)
     }
   )
   self
